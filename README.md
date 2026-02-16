@@ -6,59 +6,80 @@ A local-AI-powered Webex chatbot framework that anyone can run in 5 minutes and 
 
 ### Prerequisites
 - Python 3.10+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) (Python package manager)
 - [Ollama](https://ollama.ai) installed and running with at least one model pulled
 - A [Webex Bot account](https://developer.webex.com/my-apps/new/bot) (free developer account)
-- [ngrok](https://ngrok.com) installed (free account)
+- [ngrok](https://ngrok.com) account (free tier works)
 
 ### Setup
 ```bash
-# Clone the repo
-git clone <repo-url>
+git clone https://github.com/seanerama/Webex_Chatbot.git
 cd Webex_Chatbot
-
-# Run the setup script
-python3 setup.py
+uv sync --dev
+uv run python setup.py
 ```
 
-The setup script will:
-1. Ask for your Webex Bot token
-2. Check that Ollama is running and has a model available
-3. Start an ngrok tunnel
-4. Register the Webex webhook
-5. Launch the bot
+The setup wizard will:
+1. Ask for your Webex Bot token and verify it
+2. Let you choose an LLM provider (Ollama default, or Anthropic/OpenAI/Gemini/xAI)
+3. Test LLM connectivity
+4. Configure admin email and first approved user
+5. Start an ngrok tunnel and register the Webex webhook
+6. Generate your `.env` file and launch the bot
 
 **That's it.** Message your bot in Webex and start chatting.
 
-## What You Get
+### Subsequent Launches
+```bash
+uv run python start.py
+```
 
-### AI-Powered Responses
-- **Local AI via Ollama** — your messages never leave your machine
-- **Multiple AI personalities** — auto-selected based on what you ask:
-  - **Default Assistant** — general conversation and help
-  - **Technical Expert** — code, debugging, technical questions
-  - **Creative Assistant** — brainstorming, writing, ideas
-  - **Content Summarizer** — TLDRs, bullet points, key takeaways
-  - **Business Analyst** — analysis, strategy, recommendations
-- **Customizable prompts** — edit `prompts.json` to create your own personalities
+This reuses your existing `.env`, starts a fresh ngrok tunnel, re-registers the webhook (ngrok free tier rotates URLs), and launches the bot.
+
+## Features
+
+### Multi-Provider LLM Support
+- **Ollama** (default) — local AI, your messages never leave your machine
+- **Anthropic** (Claude) — cloud provider
+- **OpenAI** (GPT) — cloud provider
+- **Gemini** (Google) — cloud provider
+- **xAI** (Grok) — cloud provider
+
+One provider is selected at setup. All providers use the same interface.
+
+### Personality System
+JSON-defined AI personalities assigned to users by email pattern:
+- **Default Assistant** — general conversation and help
+- **Cisco Expert** — networking-focused technical answers
+- **Code Reviewer** — code analysis and review
+
+Personalities are resolved per-user: exact email match first, then glob pattern match (`*@cisco.com`), then default fallback. Users can override with `use prompt [name] [question]` for a single message.
+
+Edit `bot_server/config/personalities.json` and `bot_server/config/user-mappings.json` to customize.
 
 ### User Access Control
 - **Approved users list** — control who can interact with the bot
 - **Admin commands via chat** — add/remove users without touching config files
 - **Silent blocking** — unauthorized users are ignored and logged
 
+### Conversation Memory
+- Sliding window of 20 messages per room
+- Independent per-room history
+- Clears on restart (in-memory for v1)
+
 ### Built-in Commands
-| Command | Description |
-|---------|-------------|
-| `help` | Show available commands |
-| `ping` | Test bot responsiveness |
-| `use prompt [name] [question]` | Use a specific AI personality |
-| `health check` | Check AI service status |
-| `list models` | Show available Ollama models |
-| `reload prompts` | Reload AI prompt configurations |
-| `add user email@company.com` | Add user to approved list (admin) |
-| `remove user email@company.com` | Remove user from approved list (admin) |
-| `list users` | Show all approved users (admin) |
-| `reload users` | Reload approved users from file (admin) |
+| Command | Access | Description |
+|---------|--------|-------------|
+| `help` | All | Show available commands |
+| `ping` | All | Test bot responsiveness |
+| `health check` | All | Check LLM provider status |
+| `list models` | All | Show available models (Ollama only) |
+| `use prompt [name] [question]` | All | Use a specific personality for one message |
+| `add user email@domain.com` | Admin | Add user to approved list |
+| `remove user email@domain.com` | Admin | Remove user from approved list |
+| `list users` | Admin | Show all approved users |
+| `reload users` | Admin | Reload approved users from file |
+| `reload prompts` | Admin | Reload personality configurations |
 
 ## Architecture
 
@@ -68,148 +89,118 @@ You ── Webex Cloud ── ngrok tunnel ── Bot Server ── Ollama
                                       (FastAPI)     (local)
 ```
 
-### Production Deployment (enterprise)
+### Production (enterprise)
 ```
 Webex Cloud ── DMZ Relay Server ── Internal Bot Server ── Ollama
                (HTTPS/SSL)         (FastAPI)               (local)
 ```
 
-The quick-start path and production path run the **same bot framework**. The only difference is how traffic reaches it: ngrok for development, DMZ relay for production.
+The quick-start path and production path run the **same bot framework**. The only difference is how traffic reaches it: ngrok for development, a reverse proxy or DMZ relay for production. See [Deployment Guide](docs/deploy-instruct.md) for production setup.
 
 ## Project Structure
 
-### Bot Framework (`bot_server/`)
 ```
-bot_server/
-├── app.py                # Main FastAPI application
-├── config.py             # Configuration management
-├── ollama_service.py     # AI processing service
-├── handlers/
-│   └── webhook_handler.py # Webhook processing + user access control
-├── services/
-│   └── webex_api.py      # Webex API wrapper with AI integration
-├── utils/
-│   └── decorators.py     # Authentication decorators
-├── prompts.json          # AI prompt templates
-├── approved_users.json   # Approved users list
-└── logs/                 # Log files
-```
-
-### DMZ Relay (optional, for production — `dmz_relay/`)
-```
-dmz_relay/
-├── app.py                 # FastAPI relay application
-├── config.py              # Configuration management
-├── webhook_validator.py   # Webex signature validation
-├── relay_client.py        # HTTP client for forwarding
-└── logs/                  # Log files
+Webex_Chatbot/
+├── setup.py                          # Interactive setup wizard
+├── start.py                          # Bot launcher (subsequent runs)
+├── pyproject.toml                    # Dependencies and project config
+├── .env.example                      # Environment variable template
+├── bot_server/
+│   ├── app.py                        # FastAPI app, webhook + health endpoints
+│   ├── config.py                     # Settings dataclass, config loader, logging
+│   ├── providers/
+│   │   ├── base.py                   # Abstract LLM provider interface
+│   │   ├── ollama.py                 # Ollama provider
+│   │   ├── anthropic.py              # Anthropic provider
+│   │   ├── openai_provider.py        # OpenAI provider
+│   │   ├── gemini.py                 # Gemini provider
+│   │   └── xai.py                    # xAI provider (OpenAI-compatible)
+│   ├── handlers/
+│   │   ├── webhook_handler.py        # Webhook receipt + routing
+│   │   ├── command_handler.py        # Built-in command parsing
+│   │   └── message_queue.py          # Async message queue + LLM processing
+│   ├── services/
+│   │   ├── personality.py            # Personality resolution by email
+│   │   ├── memory.py                 # Conversation history (sliding window)
+│   │   └── user_manager.py           # Approved users CRUD
+│   └── config/
+│       ├── personalities.json        # AI personality definitions
+│       ├── user-mappings.json        # Email → personality mapping rules
+│       └── approved_users.json       # Approved user list
+├── tests/                            # 139 tests (pytest)
+└── docs/
+    ├── project-plan.md               # Technical project plan
+    └── deploy-instruct.md            # Production deployment guide
 ```
 
 ## Configuration
 
-### Bot Server (.env)
+### Environment Variables (.env)
+
+Generated by `setup.py`. See `.env.example` for all options:
+
 ```bash
-# Webex Configuration
-WEBEX_BOT_TOKEN=your_bot_token
-WEBEX_BOT_ID=your_bot_id
-WEBEX_BOT_NAME=AI Assistant
-
-# Ollama AI Configuration
-OLLAMA_URL=http://localhost:11434
-PROMPTS_FILE=prompts.json
-
-# User Access Control
-APPROVED_USERS_FILE=approved_users.json
-SEND_UNAUTHORIZED_MESSAGE=false
-ADMIN_EMAILS=admin@company.com
-
-# Bot Features
-ENABLE_AI=true
-DEFAULT_RESPONSE=Hello! I'm your AI assistant. How can I help you today?
-
-# Logging
-LOG_LEVEL=INFO
-LOG_FILE=./logs/bot_server.log
+WEBEX_BOT_TOKEN=your_bot_token       # Webex bot access token
+WEBEX_BOT_ID=                        # Auto-retrieved during setup
+LLM_PROVIDER=ollama                  # ollama | anthropic | openai | gemini | xai
+LLM_MODEL=llama3.1:8b               # Model name
+OLLAMA_URL=http://localhost:11434    # Ollama endpoint
+LLM_API_KEY=                         # API key (cloud providers only)
+ADMIN_EMAILS=admin@example.com       # Comma-separated admin emails
+LOG_LEVEL=INFO                       # DEBUG | INFO | WARNING | ERROR
+NGROK_AUTHTOKEN=                     # ngrok auth token (recommended)
 ```
 
-### AI Prompt Configuration (prompts.json)
+### Personality Configuration
+
+Edit `bot_server/config/personalities.json`:
 ```json
 {
   "default": {
-    "name": "Default Assistant",
-    "model": "llama3.1:8b",
+    "name": "Helpful Assistant",
     "system_prompt": "You are a helpful AI assistant...",
-    "temperature": 0.7,
-    "max_tokens": 1000,
-    "enabled": true
+    "temperature": 0.2,
+    "max_tokens": 1000
   }
 }
 ```
 
-### Approved Users (approved_users.json)
+Map users to personalities in `bot_server/config/user-mappings.json`:
 ```json
 {
-  "description": "Approved users for Webex AI Bot",
-  "users": [
-    {
-      "email": "john.doe@company.com",
-      "name": "John Doe",
-      "department": "Engineering",
-      "added_date": "2025-07-30",
-      "notes": "Initial setup"
-    }
+  "default_personality": "default",
+  "mappings": [
+    {"match": "*@cisco.com", "type": "pattern", "personality": "cisco-expert"}
   ]
 }
 ```
 
-## Production Deployment
+## Development
 
-When you're ready to move beyond the quick-start path, the production deployment adds:
-
-- **DMZ relay server** — public-facing HTTPS endpoint that validates webhooks and forwards to your internal network
-- **SSL/TLS certificates** — proper certificate management instead of ngrok
-- **API key authentication** — secure communication between DMZ relay and bot server
-- **Firewall rules** — network segmentation between DMZ and internal servers
-
-See [Production Deployment Guide](docs/production-deployment.md) for full setup instructions.
-
-### Production Architecture
-```
-Internet ── DMZ Relay Server ── Internal Bot Server ── Ollama AI Service
-            (HTTPS/SSL)         (FastAPI)               (local)
-```
-
-**Security features in production:**
-- Webhook signature validation (HMAC-SHA1)
-- SSL/TLS encryption with custom certificates
-- API key authentication between servers
-- Security headers (HSTS, XSS protection, content type sniffing prevention)
-- Request retry logic with exponential backoff
-- Comprehensive logging and monitoring
-
-## Monitoring & Troubleshooting
-
-### Log Location
-- Bot Server: `./logs/bot_server.log`
-- DMZ Relay (production): `./logs/dmz_relay.log`
-
-### Health Checks
+### Running Tests
 ```bash
-# Bot server
-curl http://localhost:8080/health
-
-# Ollama
-curl http://localhost:11434/api/tags
+uv sync --dev
+uv run pytest -v           # 139 tests
+uv run ruff check .        # Lint
+uv run ruff format --check .  # Format check
 ```
 
-### Common Issues
+### Health Check
+```bash
+curl http://localhost:8080/health
+# {"status": "healthy", "provider": true}
+```
+
+## Troubleshooting
+
 | Symptom | Likely Cause |
 |---------|-------------|
+| `ModuleNotFoundError` running setup.py | Run `uv sync --dev` first to install dependencies |
 | Bot not responding | Check Ollama is running (`ollama serve`) |
-| ngrok tunnel expired | Restart with `python3 setup.py` |
-| "Unauthorized user" in logs | Add user to `approved_users.json` or via admin command |
+| ngrok tunnel expired | Restart with `uv run python start.py` (re-registers webhook) |
+| "Unauthorized user" in logs | Add user via `add user email@domain.com` chat command |
 | Slow AI responses | Try a smaller model (`ollama pull llama3.2:3b`) |
 
 ## License
 
-[TBD]
+MIT

@@ -265,10 +265,15 @@ def add_approved_user(email: str, name: str) -> None:
 def prompt_ngrok_token() -> str:
     """Prompt for ngrok authtoken."""
     print("ngrok provides a public URL for Webex to reach your bot.")
-    print("  A free ngrok account is recommended: https://ngrok.com")
+    print("  A free ngrok account is required: https://ngrok.com")
+    print("  Get your authtoken: https://dashboard.ngrok.com/get-started/your-authtoken")
     print()
-    token = input("Enter ngrok authtoken (press Enter to skip): ").strip()
-    return token
+    while True:
+        token = input("Enter ngrok authtoken: ").strip()
+        if token:
+            return token
+        print("  ngrok authtoken is required. Sign up free at https://ngrok.com")
+        print()
 
 
 def start_ngrok(authtoken: str, port: int = 8080) -> str:
@@ -296,7 +301,7 @@ def start_ngrok(authtoken: str, port: int = 8080) -> str:
         print(f"  Error: {exc}")
         print("  Check your ngrok authtoken and that ngrok is installed.")
         print()
-        raise
+        sys.exit(1)
 
 
 def register_webhook(token: str, ngrok_url: str) -> None:

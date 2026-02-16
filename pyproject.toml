@@ -1,0 +1,32 @@
+[project]
+name = "webex-ai-chatbot"
+version = "0.1.0"
+description = "A local-AI-powered Webex chatbot framework with personality system"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "webexteamssdk",
+    "httpx",
+    "python-dotenv",
+    "pyngrok",
+]
+
+[project.optional-dependencies]
+anthropic = ["anthropic"]
+openai = ["openai"]
+gemini = ["google-generativeai"]
+cloud = ["anthropic", "openai", "google-generativeai"]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

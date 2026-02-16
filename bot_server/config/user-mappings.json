@@ -1,0 +1,20 @@
+{
+  "default_personality": "default",
+  "mappings": [
+    {
+      "match": "admin@company.com",
+      "type": "exact",
+      "personality": "code-reviewer"
+    },
+    {
+      "match": "*@cisco.com",
+      "type": "pattern",
+      "personality": "cisco-expert"
+    },
+    {
+      "match": "*@engineering.company.com",
+      "type": "pattern",
+      "personality": "code-reviewer"
+    }
+  ]
+}
